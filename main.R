@@ -6,7 +6,6 @@
 #    where expectedPayt stays the same as total number of expected payment up to the current month.
 # 5. not using data.table as to minimise the library
 
-
 library(dplyr)
 options(dplyr.summarise.inform = FALSE)
 
@@ -19,24 +18,27 @@ paidOrNotNext <- function(tbl, payCodeTbl, maxPay = 999){
   
   tbl_last <- tbl %>% 
     filter(numStep == max(tbl$numStep)) %>% 
-    inner_join(payCodeTbl, c("code"="code"))
+    inner_join(payCodeTbl, c("code"="code")) %>% 
+    mutate(code = substr(code, 2, lenCode))
   
   out <- tbl %>% 
     union_all(
+      # pay
       tbl_last %>%
-        mutate(code = paste(substr(code,2,lenCode),"1",sep=""), 
+        mutate(code = paste(code, "1", sep = ""), 
                payNum = if_else(payNum >= maxPay, maxPay, payNum + 1),
                prob = prob * paidPerc) %>% 
-        union_all(tbl_last %>% 
-                    mutate(code = paste(substr(code,2,lenCode),"0",sep=""), 
-               prob = prob * notPaidPerc)) %>% 
-        mutate(numStep = numStep+1) %>% 
+        union_all(
+          # not pay
+          tbl_last %>%
+            mutate(code = paste(code, "0", sep = ""), 
+                   prob = prob * notPaidPerc)
+          ) %>% 
+        mutate(numStep = numStep + 1) %>% 
         select(-paidPerc, -notPaidPerc)
-    ) 
-  out %>% group_by(numStep, code, payNum) %>% summarise(prob = sum(prob)) %>% ungroup()
-  
+    )  
+  out %>% group_by(numStep, code, payNum) %>% summarise(prob = sum(prob)) %>% ungroup()  
 }
-
 
 paidOrNotPaid <- function(startCode, payCodeTbl, numMth, start_mth_num = 1, maxPay = 999){
   
@@ -53,17 +55,15 @@ paidOrNotPaid <- function(startCode, payCodeTbl, numMth, start_mth_num = 1, maxP
     # in each step, take away the first part of the code and add on the paid or not paid, and assign probability depends on month
     if(chk_cycle){
       pay_code <- payCodeTbl %>% filter(mth_num == ((start_mth_num +i-1 ) %% max(payCodeTbl$mth_num)) + 1) %>% select(code, paidPerc, notPaidPerc) # do the cycle
-    } 
-    
+    }     
     tbl <- paidOrNotNext(tbl, pay_code, maxPay)
   }
   
-  tbl %>% mutate(startCode = startCode) %>% 
+  tbl %>% filter(numStep > 0) %>% 
+    mutate(startCode = startCode) %>% 
     group_by(startCode, numStep, payNum) %>% 
     summarise(prob = sum(prob)) %>% ungroup()
-  
 }
-
 
 getPymtPercTbl <- function(payCodeTbl, numMth, start_mth_num = 1, maxPay = 999){
   
@@ -78,7 +78,6 @@ getPymtPercTbl <- function(payCodeTbl, numMth, start_mth_num = 1, maxPay = 999){
       paidOrNotPaid(payCodeTbl$code[i], payCodeTbl, numMth, start_mth_num, maxPay)
     )
   }
-  
   result 
 }
 
