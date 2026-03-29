@@ -1,20 +1,31 @@
-# this example is based on 2 months of pay (1) or not pay (0)
-# where cnt is total count of the 2 months sample 
-# and output is the following month who pay
-x <- data.frame(code = c("11","10","01","00"), 
-                cnt  = c(1000, 1000, 1000, 1000),
-                output = c(900, 500, 300, 50)
-                )
-# 3 months of pay/not pay code will have 8 rows, and 4 months of pay/not pay code will have 16 rows 
+## ---- getCodeTbl ------------------------------------------------------
+## Helper: converts a raw count table (code, cnt, output) into the
+## parameter table (code, total, paidPerc, notPaidPerc) required by
+## getPymtPercTbl(). paidPerc = output / cnt is the empirical MLE of
+## P(payment | state).
 
-getCodeTbl <- function(dt){
-  data.frame(code = dt$code, 
-             total = as.integer(dt$cnt),
-             paidPerc =as.integer(dt$output)/as.integer(dt$cnt), 
-             notPaidPerc = 1-as.integer(dt$output)/as.integer(dt$cnt), 
-             stringsAsFactors = FALSE) %>% arrange(code)
+getCodeTbl <- function(dt) {
+  data.frame(
+    code        = dt$code,
+    total       = as.integer(dt$cnt),
+    paidPerc    = as.integer(dt$output) / as.integer(dt$cnt),
+    notPaidPerc = 1 - as.integer(dt$output) / as.integer(dt$cnt),
+    stringsAsFactors = FALSE
+  ) %>% arrange(code)
 }
 
+## ---- Example usage ---------------------------------------------------
+## k = 2 parameter table. Each row is one history state:
+##   code '11' = paid, paid   (p = 0.90)
+##   code '10' = paid, missed (p = 0.50)
+##   code '01' = missed, paid (p = 0.30)
+##   code '00' = missed, missed (p = 0.05)
+
+x <- data.frame(
+  code   = c("11", "10", "01", "00"),
+  cnt    = c(1000, 1000, 1000, 1000),
+  output = c( 900,  500,  300,   50)
+)
 y <- getCodeTbl(x)
 
 # > y
@@ -24,6 +35,8 @@ y <- getCodeTbl(x)
 # 3   10  1000     0.50        0.50
 # 4   11  1000     0.90        0.10
 
+## Step 1: compute full joint distribution over 5 months (no maturity limit).
+## Step 2: derive decline curve from the distribution table.
 print(data.frame(getModelDeclineCurve(getPymtPercTbl(y, 5))))
 
 #    startCode numStep expectedPayt declineCurve
@@ -47,3 +60,24 @@ print(data.frame(getModelDeclineCurve(getPymtPercTbl(y, 5))))
 # 18        11       3    2.5515000    0.7915000
 # 19        11       4    3.2979750    0.7464750
 # 20        11       5    3.9933463    0.6953712
+
+
+
+## Confidence intervals -- no additional modelling needed.
+## Marginalise over states, compute cumulative probabilities, read quantiles.
+pymtDist <- getPymtPercTbl(y, numMth = 10, maxPay = 4)
+
+marginal <- pymtDist %>%
+  group_by(startCode, numStep, payNum) %>%
+  summarise(prob = sum(prob)) %>%
+  group_by(startCode, numStep) %>%
+  arrange(payNum) %>%
+  mutate(cum_prob = cumsum(prob))
+
+## 95% confidence interval: Q_0.025 and Q_0.975
+ci <- marginal %>%
+  summarise(
+    lower_95 = min(payNum[cum_prob >= 0.025]),
+    upper_95 = min(payNum[cum_prob >= 0.975])
+  )
+print(ci)
