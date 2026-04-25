@@ -84,7 +84,7 @@ getCodeTbl <- function(dt){
 ui <- fluidPage(
   # Application title
   theme = shinytheme("cosmo"),
-  titlePanel(HTML("Dynamic Stochastic Model <br><small>Kevin Hau</small>")),
+  titlePanel(HTML("k-Bit Recurrence Model <br><small>Kevin Hau</small>")),
   
   sidebarLayout(
     # Sidebar panel for inputs ----
