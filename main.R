@@ -44,8 +44,6 @@ paidOrNotNext <- function(tbl, payCodeTbl, maxPay = 999) {
     )
   
   ## Collapse: sum probabilities over identical (numStep, code, payNum) tuples.
-  ## This is the key operation that keeps the state space O(2^k) rather
-  ## than O(2^t) -- many paths share the same state and payment count.
   out %>%
     group_by(numStep, code, payNum) %>%
     summarise(prob = sum(prob)) %>%
