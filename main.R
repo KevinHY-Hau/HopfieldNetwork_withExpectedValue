@@ -17,14 +17,12 @@ options(dplyr.summarise.inform = FALSE)
 
 paidOrNotNext <- function(tbl, payCodeTbl, maxPay = 999) {
   
-  lenCode <- nchar(tbl$code[1])
-  
   ## Extract the most recent step and join payment probabilities.
   ## Shift the state code left by one position (drop oldest bit).
   tbl_last <- tbl %>%
     filter(numStep == max(tbl$numStep)) %>%
     inner_join(payCodeTbl, c("code" = "code")) %>%
-    mutate(code = substr(code, 2, lenCode))
+    mutate(code = substr(code, 2, nchar(tbl$code[1])))
   
   out <- tbl %>%
     union_all(
